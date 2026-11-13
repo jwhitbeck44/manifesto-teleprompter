@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manifesto Teleprompter</title>
+<style>
+  :root {
+    --bg: #000;
+    --panel: #14171c;
+    --line: #2d333d;
+    --text: #fff;
+    --muted: #b9c0cc;
+    --accent: #ffd400;
+    --green: #35e06f;
+    --red: #ff4d4d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button {
+    min-height: 52px; min-width: 52px; padding: 0 18px;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 12px;
+    cursor: pointer; font-weight: 600; font-size: 1rem;
+    touch-action: manipulation;
+  }
+  button:hover { border-color: #566070; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .primary { background: var(--accent); color: #000; border-color: var(--accent); }
+  .primary:hover { border-color: #fff; }
+  .hidden { display: none !important; }
+
+  /* Setup screen */
+  #setup { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: clamp(1.8rem, 7vw, 2.6rem); margin: 8px 0 6px; line-height: 1.1; }
+  .tagline { margin: 0 0 22px; color: var(--muted); font-size: 1.1rem; }
+  label.field { display: block; font-weight: 700; margin-bottom: 8px; }
+  textarea#script {
+    width: 100%; min-height: 40vh; padding: 14px; resize: vertical;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 12px;
+    font-size: 1.15rem; line-height: 1.5;
+  }
+  fieldset { border: 0; padding: 0; margin: 20px 0 0; }
+  legend { font-weight: 700; margin-bottom: 8px; padding: 0; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mode { position: relative; }
+  .mode input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .mode span {
+    display: block; min-height: 64px; padding: 12px 14px; border: 2px solid var(--line);
+    border-radius: 12px; background: var(--panel);
+  }
+  .mode b { display: block; font-size: 1.05rem; }
+  .mode small { color: var(--muted); }
+  .mode input:checked + span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .mode input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+  #startBtn { width: 100%; margin-top: 22px; min-height: 64px; font-size: 1.3rem; }
+  .note { color: var(--muted); font-size: .95rem; margin: 14px 0 0; }
+  #setupMsg { color: var(--red); min-height: 1.4em; margin: 10px 0 0; font-weight: 600; }
+
+  /* Prompter screen */
+  #prompter { display: flex; flex-direction: column; height: 100vh; height: 100dvh; width: 100%; }
+  .bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px; border-bottom: 1px solid var(--line); min-height: 96px;
+  }
+  #timer { font-size: clamp(2rem, 9vw, 3.4rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  #timer.t-white { color: #fff; }
+  #timer.t-green { color: var(--green); }
+  #timer.t-red { color: var(--red); }
+  .previewWrap { display: flex; align-items: center; gap: 8px; }
+  #recDot { color: var(--red); font-weight: 800; letter-spacing: .05em; }
+  #preview {
+    width: 120px; height: 90px; object-fit: cover; border-radius: 10px;
+    border: 2px solid var(--line); background: #000; transform: scaleX(-1);
+  }
+  #viewport { position: relative; flex: 1 1 auto; overflow: hidden; cursor: pointer; }
+  #scroller { will-change: transform; padding: 0 16px; }
+  #text {
+    margin: 0 auto; max-width: 1100px; white-space: pre-wrap; overflow-wrap: anywhere;
+    font-size: 44px; line-height: 1.45; font-weight: 600; text-align: center;
+  }
+  #viewport::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 30%; height: 3px;
+    background: rgba(255,212,0,.35); pointer-events: none; z-index: 2;
+  }
+  #pausedBadge {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 3;
+    background: var(--accent); color: #000; font-weight: 800; padding: 6px 14px; border-radius: 999px;
+  }
+  #msg { margin: 0; padding: 8px 14px; background: #2a1a1a; color: #ffd0d0; font-weight: 600; }
+  .controls { padding: 10px 12px 12px; border-top: 1px solid var(--line); background: #0a0c0f; }
+  .speedRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .speedRow label { font-weight: 700; white-space: nowrap; }
+  #speed { flex: 1 1 auto; min-width: 0; height: 40px; accent-color: var(--accent); }
+  .btnRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+  #recBtn.rec { background: var(--red); border-color: var(--red); color: #000; }
+  #saveLink { display: inline-block; color: var(--accent); font-weight: 700; padding: 10px 0; }
+  #doneBox { padding: 0 14px 8px; }
+
+  @media (max-width: 480px) {
+    #preview { width: 96px; height: 72px; }
+    .bar { min-height: 84px; }
+    #text { font-size: 32px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<main id="setup">
+  <h1>Manifesto Teleprompter</h1>
+  <p class="tagline">Your words. Your character. Nothing leaves your device.</p>
+
+  <label class="field" for="script">Paste your script</label>
+  <textarea id="script" placeholder="Paste or type your manifesto here" spellcheck="false"></textarea>
+
+  <fieldset>
+    <legend>Timer mode</legend>
+    <div class="modes">
+      <label class="mode"><input type="radio" name="mode" value="rehearsal" checked><span><b>60-second rehearsal</b><small>Timer turns red at 1:00</small></span></label>
+      <label class="mode"><input type="radio" name="mode" value="full"><span><b>Full manifesto</b><small>Green from 3:00 to 5:00, red after</small></span></label>
+    </div>
+  </fieldset>
+
+  <button id="startBtn" class="primary" type="button">Start</button>
+  <p id="setupMsg" role="alert"></p>
+  <p class="note">Recording is optional. You can turn it on from the next screen, and your browser will ask for camera and microphone access. Video is saved straight to your device.</p>
+</main>
+
+<section id="prompter" class="hidden" aria-label="Teleprompter">
+  <div class="bar">
+    <div id="timer" class="t-white" aria-live="off">0:00</div>
+    <div class="previewWrap">
+      <span id="recDot" class="hidden">REC</span>
+      <video id="preview" class="hidden" muted playsinline autoplay></video>
+    </div>
+  </div>
+  <p id="msg" class="hidden" role="status"></p>
+  <div id="viewport" aria-label="Script. Tap to pause or resume.">
+    <div id="pausedBadge" class="hidden">PAUSED</div>
+    <div id="scroller"><div id="text"></div></div>
+  </div>
+  <div id="doneBox" class="hidden"><a id="saveLink" href="#">Save video again</a></div>
+  <div class="controls">
+    <div class="speedRow">
+      <button id="slower" type="button" aria-label="Slower">-</button>
+      <label for="speed">Speed</label>
+      <input id="speed" type="range" min="1" max="20" step="1" value="4">
+      <button id="faster" type="button" aria-label="Faster">+</button>
+    </div>
+    <div class="btnRow">
+      <button id="pauseBtn" type="button">Pause</button>
+      <button id="recBtn" type="button">Record</button>
+      <button id="smaller" type="button" aria-label="Smaller text">A-</button>
+      <button id="bigger" type="button" aria-label="Bigger text">A+</button>
+      <button id="exitBtn" type="button">Exit</button>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var setup = $('setup'), prompter = $('prompter'), scriptEl = $('script');
+  var textEl = $('text'), scroller = $('scroller'), viewport = $('viewport');
+  var timerEl = $('timer'), speedEl = $('speed'), pauseBtn = $('pauseBtn');
+  var recBtn = $('recBtn'), preview = $('preview'), msgEl = $('msg');
+  var recDot = $('recDot'), pausedBadge = $('pausedBadge');
+  var doneBox = $('doneBox'), saveLink = $('saveLink');
+
+  var PX_PER_LEVEL = 6;            // pixels per second for each speed step
+  var running = false, active = false;
+  var offset = 0, elapsed = 0, lastT = 0, rafId = 0;
+  var mode = 'rehearsal';
+  var fontSize = 44;
+  var stream = null, recorder = null, chunks = [], recMime = '', recording = false;
+  var wakeLock = null, saveUrl = null;
+
+  function fmt(sec) {
+    var s = Math.floor(sec);
+    return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  }
+
+  function timerClass(sec) {
+    var s = Math.floor(sec);
+    if (mode === 'rehearsal') return s >= 60 ? 't-red' : 't-white';
+    if (s > 300) return 't-red';
+    if (s >= 180) return 't-green';
+    return 't-white';
+  }
+
+  function paintTimer() {
+    timerEl.textContent = fmt(elapsed);
+    timerEl.className = timerClass(elapsed);
+  }
+
+  function maxOffset() {
+    return Math.max(0, scroller.offsetHeight - viewport.clientHeight);
+  }
+
+  function applyOffset() {
+    scroller.style.transform = 'translate3d(0,' + (-offset) + 'px,0)';
+  }
+
+  function layoutPadding() {
+    var h = viewport.clientHeight;
+    scroller.style.paddingTop = Math.round(h * 0.3) + 'px';
+    scroller.style.paddingBottom = Math.round(h * 0.7) + 'px';
+  }
+
+  function tick(t) {
+    if (!running) return;
+    var dt = (t - lastT) / 1000;
+    lastT = t;
+    if (dt < 0) dt = 0;
+    elapsed += dt;
+    offset += Math.min(dt, 0.1) * speedEl.value * PX_PER_LEVEL;
+    var mo = maxOffset();
+    if (offset > mo) offset = mo;
+    applyOffset();
+    paintTimer();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function setRunning(on) {
+    if (on === running || !active) return;
+    running = on;
+    pauseBtn.textContent = on ? 'Pause' : 'Resume';
+    pausedBadge.classList.toggle('hidden', on);
+    if (on) {
+      lastT = performance.now();
+      rafId = requestAnimationFrame(tick);
+    } else {
+      cancelAnimationFrame(rafId);
+    }
+  }
+
+  function toggle() { setRunning(!running); }
+
+  function setSpeed(v) {
+    v = Math.max(1, Math.min(20, v));
+    speedEl.value = v;
+  }
+
+  function setFont(px) {
+    fontSize = Math.max(20, Math.min(96, px));
+    textEl.style.fontSize = fontSize + 'px';
+  }
+
+  function showMsg(text) {
+    msgEl.textContent = text;
+    msgEl.classList.remove('hidden');
+  }
+
+  async function keepAwake() {
+    try {
+      if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
+    } catch (e) { wakeLock = null; }
+  }
+
+  function start() {
+    var text = scriptEl.value.trim();
+    if (!text) {
+      $('setupMsg').textContent = 'Paste your script first, then press Start.';
+      scriptEl.focus();
+      return;
+    }
+    $('setupMsg').textContent = '';
+    mode = document.querySelector('input[name="mode"]:checked').value;
+    textEl.textContent = text;
+    setup.classList.add('hidden');
+    prompter.classList.remove('hidden');
+    msgEl.classList.add('hidden');
+    doneBox.classList.add('hidden');
+    active = true;
+    layoutPadding();
+    offset = 0; elapsed = 0;
+    applyOffset(); paintTimer();
+    running = false;
+    setRunning(true);
+    keepAwake();
+  }
+
+  function exit() {
+    if (recording) stopRecording();
+    setRunning(false);
+    active = false;
+    releaseStream();
+    prompter.classList.add('hidden');
+    setup.classList.remove('hidden');
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+
+  function releaseStream() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    preview.srcObject = null;
+    preview.classList.add('hidden');
+    recDot.classList.add('hidden');
+  }
+
+  function pickMime() {
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+    var list = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    for (var i = 0; i < list.length; i++) {
+      if (MediaRecorder.isTypeSupported(list[i])) return list[i];
+    }
+    return '';
+  }
+
+  function dateStamp() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  async function startRecording() {
+    var blocked = 'Your browser blocked the camera, so the teleprompter is running without recording.';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+      showMsg('This browser cannot record video here, so the teleprompter is running without recording.');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+    } catch (e) {
+      stream = null;
+      showMsg(blocked);
+      return;
+    }
+    try {
+      recMime = pickMime();
+      recorder = recMime ? new MediaRecorder(stream, { mimeType: recMime }) : new MediaRecorder(stream);
+      if (!recMime) recMime = recorder.mimeType || 'video/webm';
+    } catch (e) {
+      releaseStream();
+      showMsg(blocked);
+      return;
+    }
+    chunks = [];
+    recorder.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
+    recorder.onstop = saveVideo;
+    preview.srcObject = stream;
+    preview.classList.remove('hidden');
+    recDot.classList.remove('hidden');
+    msgEl.classList.add('hidden');
+    doneBox.classList.add('hidden');
+    recorder.start();
+    recording = true;
+    recBtn.textContent = 'Stop';
+    recBtn.classList.add('rec');
+    if (!running) setRunning(true);
+  }
+
+  function stopRecording() {
+    if (!recorder || !recording) return;
+    recording = false;
+    recBtn.textContent = 'Record';
+    recBtn.classList.remove('rec');
+    try { recorder.stop(); } catch (e) { saveVideo(); }
+  }
+
+  function saveVideo() {
+    var isMp4 = /mp4/i.test(recMime);
+    var blob = new Blob(chunks, { type: (recMime || 'video/webm').split(';')[0] });
+    if (saveUrl) URL.revokeObjectURL(saveUrl);
+    saveUrl = URL.createObjectURL(blob);
+    var name = 'manifesto-' + dateStamp() + (isMp4 ? '.mp4' : '.webm');
+    saveLink.href = saveUrl;
+    saveLink.setAttribute('download', name);
+    saveLink.textContent = 'Save video again (' + name + ')';
+    doneBox.classList.remove('hidden');
+    saveLink.click();
+    releaseStream();
+    recorder = null;
+  }
+
+  // Wiring
+  $('startBtn').addEventListener('click', start);
+  $('exitBtn').addEventListener('click', exit);
+  pauseBtn.addEventListener('click', toggle);
+  viewport.addEventListener('click', toggle);
+  $('slower').addEventListener('click', function () { setSpeed(+speedEl.value - 1); });
+  $('faster').addEventListener('click', function () { setSpeed(+speedEl.value + 1); });
+  $('bigger').addEventListener('click', function () { setFont(fontSize + 4); });
+  $('smaller').addEventListener('click', function () { setFont(fontSize - 4); });
+  recBtn.addEventListener('click', function () {
+    if (recording) stopRecording(); else startRecording();
+  });
+  window.addEventListener('resize', function () { if (active) { layoutPadding(); applyOffset(); } });
+
+  document.addEventListener('keydown', function (e) {
+    if (!active) return;
+    if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); if (!e.repeat) toggle(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSpeed(+speedEl.value + 1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setSpeed(+speedEl.value - 1); }
+  });
+  document.addEventListener('keyup', function (e) {
+    if (active && (e.code === 'Space' || e.key === ' ')) e.preventDefault();
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && active && !wakeLock) keepAwake();
+  });
+})();
+</script>
+</body>
+</html>
